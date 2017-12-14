@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 
+import collections
 import re
 import sys
 import subprocess
@@ -9,6 +10,19 @@ import struct
 
 PTR_SIZE = 8
 MIN_CHAIN_LENGTH = 3
+
+"""Tuple to be associated with each gadget address.
+    asm    : textual representation of instructions.
+    pops   : number of pop instructions in gadget.
+    pushes : number of push instructions in gadget.
+    mangle : the number of words which may be mangled by the gadget,
+             from left to right, push gives +1, pop gives -1 - then
+             the maximum is taken.
+    calls  : number of call instructions in gadget.
+    ^ TODO may be unnecessary.
+"""
+GadgetInfo = collections.namedtuple("GadgetInfo",
+                                    "asm pops pushes mangle calls")
 
 def write_gadgets(gadget_file):
     with open(gadget_file, 'w') as gf:
@@ -27,7 +41,7 @@ def populate_gadget_addresses(gadgets_dict, gadget_file):
                 continue
 
             gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
-                = match.group(2)
+                = GadgetInfo(match.group(2), None, None, None, None)
 
 def search_coredump(gadget_dict, coredump):
     chains = []
@@ -39,7 +53,7 @@ def search_coredump(gadget_dict, coredump):
 
         while curr != "":
             try:
-                asm = gadget_dict[curr]
+                asm = gadget_dict[curr].asm
                 # We have a match
                 curr_chain.append((curr, asm))
                 curr_chain_len += 1
