@@ -43,7 +43,6 @@ def search_coredump(gadget_dict, coredump):
                 # We have a match
                 curr_chain.append((curr, asm))
                 curr_chain_len += 1
-                print(curr_chain_len)
             except:
                 # Not matching. Did we have a chain?
                 if curr_chain_len != 0:
@@ -61,6 +60,14 @@ def search_coredump(gadget_dict, coredump):
             chains.append(curr_chain)
 
     return chains
+
+def print_payloads(payloads):
+    print("Found {} potential payloads".format(len(payloads)))
+    for i, payload in zip(range(1, len(payloads) + 1), payloads):
+        print("Payload #{}".format(i))
+        for gadget in payload:
+            print("  {0:#08x} : {1}".format(struct.unpack("L", gadget[0])[0],
+                                            gadget[1]))
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
@@ -82,6 +89,8 @@ if __name__ == "__main__":
 
     payloads = search_coredump(gadgets, coredump)
 
-    print(gadgets)
-    print(payloads)
+    print_payloads(payloads)
+
+    #print(gadgets)
+    #print(payloads)
 
