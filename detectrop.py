@@ -8,6 +8,7 @@ import subprocess
 import struct
 
 PTR_SIZE = 8
+MIN_CHAIN_LENGTH = 3
 
 def write_gadgets(gadget_file):
     with open(gadget_file, 'w') as gf:
@@ -28,19 +29,37 @@ def populate_gadget_addresses(gadgets_dict, gadget_file):
             gadgets_dict[struct.pack("L", int(addr[0], 16))] = True
 
 def search_coredump(gadget_dict, coredump):
+    chains = []
+
     with open(coredump, "rb") as cd:
+        curr_chain_len = 0
+        curr_chain = []
         curr = cd.read(PTR_SIZE)
+
         while curr != "":
             try:
                 gadget_dict[curr]
                 # We have a match
-                print("Matched " + curr)
+                curr_chain.append(curr)
+                curr_chain_len += 1
+                print(curr_chain_len)
             except:
-                # Not matching.
-                pass
+                # Not matching. Did we have a chain?
+                if curr_chain_len != 0:
+                    if curr_chain_len >= MIN_CHAIN_LENGTH:
+                        # Potential payload.
+                        chains.append(curr_chain)
+
+                    curr_chain = []
+                    curr_chain_len = 0
 
             curr = cd.read(PTR_SIZE)
 
+        if curr_chain_len >= MIN_CHAIN_LENGTH:
+            # Potential payload at the end.
+            chains.append(curr_chain)
+
+    return chains
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
@@ -60,7 +79,8 @@ if __name__ == "__main__":
     gadgets = {}
     populate_gadget_addresses(gadgets, gadget_file)
 
-    search_coredump(gadgets, coredump)
+    payloads = search_coredump(gadgets, coredump)
 
     print(gadgets)
+    print(payloads)
 
