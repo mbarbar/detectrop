@@ -17,16 +17,17 @@ def write_gadgets(gadget_file):
 
 
 def populate_gadget_addresses(gadgets_dict, gadget_file):
-    pattern_addr = re.compile("^0x[0-9a-f]+")
+    line_pattern = re.compile("(^0x[0-9a-f]+) : (.*)")
     with open(gadget_file, 'r') as gf:
         for line in gf:
-            # Match the address from ROPgadget's output.
-            addr = re.findall(pattern_addr, line)
-            if len(addr) == 0:
+            # Match the address and asm from ROPgadget's output.
+            match = re.match(line_pattern, line)
+            if match is None:
+                # Not a gadget line (auxiliary ROPgadget output).
                 continue
 
-            # Add that address as a gadget - True is a placeholder.
-            gadgets_dict[struct.pack("L", int(addr[0], 16))] = True
+            gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
+                = match.group(2)
 
 def search_coredump(gadget_dict, coredump):
     chains = []
@@ -38,9 +39,9 @@ def search_coredump(gadget_dict, coredump):
 
         while curr != "":
             try:
-                gadget_dict[curr]
+                asm = gadget_dict[curr]
                 # We have a match
-                curr_chain.append(curr)
+                curr_chain.append((curr, asm))
                 curr_chain_len += 1
                 print(curr_chain_len)
             except:
