@@ -7,6 +7,8 @@ import sys
 import subprocess
 import struct
 
+PTR_SIZE = 8
+
 def write_gadgets(gadget_file):
     with open(gadget_file, 'w') as gf:
         subprocess.call(("ROPgadget --depth 4 --all --binary "
@@ -25,6 +27,21 @@ def populate_gadget_addresses(gadgets_dict, gadget_file):
             # Add that address as a gadget - True is a placeholder.
             gadgets_dict[struct.pack("L", int(addr[0], 16))] = True
 
+def search_coredump(gadget_dict, coredump):
+    with open(coredump, "rb") as cd:
+        curr = cd.read(PTR_SIZE)
+        while curr != "":
+            try:
+                gadget_dict[curr]
+                # We have a match
+                print("Matched " + curr)
+            except:
+                # Not matching.
+                pass
+
+            curr = cd.read(PTR_SIZE)
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("{}: missing core dump and/or binary".format(sys.argv[0]))
@@ -42,6 +59,8 @@ if __name__ == "__main__":
 
     gadgets = {}
     populate_gadget_addresses(gadgets, gadget_file)
+
+    search_coredump(gadgets, coredump)
 
     print(gadgets)
 
