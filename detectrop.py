@@ -12,21 +12,22 @@ PTR_SIZE = 8
 MIN_CHAIN_LENGTH = 3
 
 """Tuple to be associated with each gadget address.
-    asm    : textual representation of instructions.
-    pops   : number of pop instructions in gadget.
-    pushes : number of push instructions in gadget.
-    mangle : the number of words which may be mangled by the gadget,
-             from left to right, push gives +1, pop gives -1 - then
-             the maximum is taken.
-    calls  : number of call instructions in gadget.
-    ^ TODO may be unnecessary.
+    asm      : textual representation of instructions.
+    pops     : number of pop instructions in gadget.
+    pushes   : number of push instructions in gadget.
+    calls    : number of call instructions in gadget.
+    d_before : Maximum number of data words (i.e. not special addresses)
+               that *may* be present BEFORE this gadget. Comes from
+               pushing to the stack (incl. calls).
+    d_after  : Like d_before but AFTER the gadget. Comes from popping from
+               the stack.
 """
 GadgetInfo = collections.namedtuple("GadgetInfo",
-                                    "asm pops pushes mangle calls")
+                                    "asm pops pushes calls d_before d_after")
 
 def write_gadgets(gadget_file):
     with open(gadget_file, 'w') as gf:
-        subprocess.call(("ROPgadget --depth 4 --all --binary "
+        subprocess.call(("ROPgadget --depth 8 --all --binary "
                          + binary).split(' '), stdout=gf)
 
 
@@ -41,7 +42,53 @@ def populate_gadget_addresses(gadgets_dict, gadget_file):
                 continue
 
             gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
-                = GadgetInfo(match.group(2), None, None, None, None)
+                = GadgetInfo(match.group(2), None, None, None, None, None)
+
+def count_instructions(instruction, asm):
+    substr = " {} ".format(instruction)
+    return asm.count(substr)
+
+def analyse_gadgets(gadget_dict):
+    for gadget in gadget_dict.iterkeys():
+        asm = gadget_dict[gadget].asm
+
+        pops   = 0
+        pushes = 0
+        calls  = 0
+        d_after = 0
+        d_before = 0
+        d = 0
+
+        # Count instructions - work out how much data we can have before/after.
+        instr_pattern = re.compile("pop|push|call")
+        instructions_found = re.findall(instr_pattern, asm)
+        for instruction in instructions_found:
+            # TODO: see if it's worth handling variants - probably not.
+            if "pop" in instruction:
+                pops += 1
+                d -= 1
+            elif "push" in instruction:
+                pushes += 1
+                d += 1
+            else:  # call in instruction
+                calls += 1
+                d += 1
+
+            # We might push further before the gadget or pop
+            # further after it.
+            if d < 0:
+                if abs(d) > d_before:
+                    d_before = abs(d)
+            else:
+                if d > d_after:
+                    d_after = d
+
+        gadget_dict[gadget] = gadget_dict[gadget]._replace(pops=pops,
+                                                           pushes=pushes,
+                                                           calls=calls,
+                                                           d_before=d_before,
+                                                           d_after=d_after)
+
 
 def search_coredump(gadget_dict, coredump):
     chains = []
@@ -100,11 +147,14 @@ if __name__ == "__main__":
 
     gadgets = {}
     populate_gadget_addresses(gadgets, gadget_file)
+    analyse_gadgets(gadgets)
 
     payloads = search_coredump(gadgets, coredump)
 
     print_payloads(payloads)
 
     #print(gadgets)
+    #for key in gadgets.keys():
+    #    print("   :" + str(gadgets[key]))
     #print(payloads)
 
