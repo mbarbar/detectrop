@@ -98,14 +98,81 @@ def search_coredump(gadget_dict, coredump):
         curr_chain = []
         curr = cd.read(PTR_SIZE)
 
+        last_d_after = 0
         while curr != "":
             try:
-                asm = gadget_dict[curr].asm
+                gadget_info = gadget_dict[curr]
                 # We have a match
+
+                last_d_after = gadget_info.d_after
+                asm = gadget_info.asm
                 curr_chain.append((curr, asm))
                 curr_chain_len += 1
             except:
-                # Not matching. Did we have a chain?
+                # Not matching.
+                # 1. Did the last gadget potentially have garbage afterwards?
+                if last_d_after != 0:
+                    curr = read
+                    for i in range(last_d_after - 1):
+                        curr = cd.read(PTR_SIZE)
+                        if curr is None:
+                            break
+
+                        curr_chain.append((curr, "data"))
+                        curr_chain_len += 1
+
+                    curr = cd.read(PTR_SIZE)
+
+                    try:
+                        gadget_info = gadget_dict[curr]
+                        # We're good to keep moving and we'll match
+                        # the gadget in the next iteration.
+                        continue
+                    except:
+                        # No gadget after the garbage, we'll increase the
+                        # chain length (benefit of the doubt) by ONE
+                        # and maybe end it there, depending on (2).
+                        pass
+
+                # 2. Read 3 ahead, is there a gadget there that has garbage
+                #    before it?
+                """
+                skipped = 1
+                found = False
+                for skipped in range(1, 4):
+                    curr = cd.read(PTR_SIZE)
+                    if curr is None:
+                        break
+
+                    curr_chain.append((curr, "data"))
+                    curr_chain_len += 1
+
+                    if curr not in gadget_dict:
+                        continue
+
+                    # There's a gadget - does it have garbage before?
+                    gadget_info = gadget_dict[curr]
+                    if gadget_info.d_before >= skipped\
+                       and gadget_info.d_before < skipped + last_d_after:
+                        found = True
+                        break
+
+                    # Coincidence - or the gadget address was the data.
+                    continue
+
+
+                if found:
+                    curr_chain_len += skipped
+                    # It'll be matched.
+                    continue
+
+                # Not found - remove all which has been skipped.
+                for i in range(1, skipped):
+                    curr_chain.pop()
+                    curr_chain_len -= 1
+                """
+
+                # Chain has ended.
                 if curr_chain_len != 0:
                     if curr_chain_len >= MIN_CHAIN_LENGTH:
                         # Potential payload.
@@ -113,6 +180,7 @@ def search_coredump(gadget_dict, coredump):
 
                     curr_chain = []
                     curr_chain_len = 0
+                    last_d_after = 0
 
             curr = cd.read(PTR_SIZE)
 
