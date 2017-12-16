@@ -249,7 +249,7 @@ def check_payload(gadget_dict, payload):
         else:
             dup = 0
 
-        if dup >= 6 and addr in gadget_dict:
+        if dup >= 10 and addr in gadget_dict:
             return False
 
         prev_addr = addr
