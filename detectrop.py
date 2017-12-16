@@ -208,8 +208,8 @@ def search_coredump(gadget_dict, coredump):
 def print_sources(offsets):
     print("Gadget sources")
     for shared_lib, offset in offsets.items():
-        print("  {0:#018x}  [{1}]".format(struct.unpack("L", offset)[0],
-                                          shared_lib))
+        print("  {0:#018x} [{1}]".format(struct.unpack("L", offset)[0],
+                                         shared_lib))
 
 def print_payloads(payloads):
     print("Found {} potential payloads".format(len(payloads)))
@@ -282,7 +282,9 @@ if __name__ == "__main__":
     payloads = search_coredump(gadgets, coredump)
     payloads[:] = [p for p in payloads if check_payload(gadgets, p)]
 
+    print("")
     print_sources(offsets)
+    print("")
     print_payloads(payloads)
 
     print(str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) +\
