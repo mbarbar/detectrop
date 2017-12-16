@@ -124,7 +124,7 @@ def search_coredump(gadget_dict, coredump):
                 # Not matching.
                 # 1. Did the last gadget potentially have garbage afterwards?
                 if last_d_after != 0:
-                    curr = read
+                    curr = cd.read(PTR_SIZE)
                     for i in range(last_d_after - 1):
                         curr = cd.read(PTR_SIZE)
                         if curr is None:
