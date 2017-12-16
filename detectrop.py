@@ -146,6 +146,7 @@ def search_coredump(gadget_dict, coredump):
                 last_d_after = gadget_info.d_after
                 asm = gadget_info.asm
                 source = gadget_info.source
+
                 if curr_chain_len == 0:
                     curr_chain_start = cd.tell() - PTR_SIZE
                 curr_chain.append((curr, source, asm))
@@ -222,10 +223,16 @@ def search_coredump(gadget_dict, coredump):
                     if curr_chain_len >= MIN_CHAIN_LENGTH:
                         # Potential payload.
                         chains.append((curr_chain_start, curr_chain))
+                    else:
+                        # We want to reconsider what we skipped as
+                        # garbage.
+                        cd.seek(-PTR_SIZE * last_d_after, 1)
+                        cd.seek(-PTR_SIZE * skipped, 1)
 
                     curr_chain = []
                     curr_chain_len = 0
                     last_d_after = 0
+
 
             curr = cd.read(PTR_SIZE)
 
