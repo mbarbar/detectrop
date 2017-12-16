@@ -234,8 +234,8 @@ if __name__ == "__main__":
     write_gadgets(gadget_file)
 
     offsets = {}
+    offsets[binary] = struct.pack("L", 0)
     add_shared_lib_offsets(offsets, coredump)
-    print(offsets)
 
     gadgets = {}
     populate_gadget_addresses(gadgets, gadget_file)
