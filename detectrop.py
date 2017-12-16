@@ -11,7 +11,7 @@ import struct
 import resource
 
 PTR_SIZE = 8
-MIN_CHAIN_LENGTH = 3
+MIN_CHAIN_LENGTH = 4
 
 """Tuple to be associated with each gadget address.
     asm      : textual representation of instructions.
@@ -151,7 +151,7 @@ def search_coredump(gadget_dict, coredump):
                 # Not matching.
                 # 1. Did the last gadget potentially have garbage afterwards?
                 if last_d_after != 0:
-                    curr_chain.append((curr, "thrashed?", "data"))
+                    curr_chain.append((curr, "hand-picked?", "data"))
                     curr_chain_len += 1
 
                     for i in range(last_d_after - 1):
@@ -159,7 +159,7 @@ def search_coredump(gadget_dict, coredump):
                         if curr is None:
                             break
 
-                        curr_chain.append((curr, "thrashed?", "data"))
+                        curr_chain.append((curr, "hand-picked?", "data"))
                         curr_chain_len += 1
 
                     curr = cd.read(PTR_SIZE)
@@ -173,6 +173,7 @@ def search_coredump(gadget_dict, coredump):
                         # No gadget after the garbage, we'll increase the
                         # chain length (benefit of the doubt) by ONE
                         # and maybe end it there, depending on (2).
+                        curr_chain_len += 1
                         pass
 
                 # 2. Read 3 ahead, is there a gadget there that has garbage
@@ -180,26 +181,27 @@ def search_coredump(gadget_dict, coredump):
                 skipped = 1
                 found = False
                 for skipped in range(1, 4):
-                    curr = cd.read(PTR_SIZE)
                     if curr is None:
                         break
 
                     if curr not in gadget_dict:
-                        curr_chain.append((curr, "hand-picked?", "data"))
+                        curr_chain.append((curr, "thrashed?", "data"))
                         curr_chain_len += 1
+                        curr = cd.read(PTR_SIZE)
                         continue
 
 
                     # There's a gadget - does it have garbage before?
                     gadget_info = gadget_dict[curr]
                     if gadget_info.d_before >= skipped\
-                       and gadget_info.d_before < skipped + last_d_after:
+                       and gadget_info.d_before <= skipped + last_d_after:
                         found = True
                         break
 
                     # Coincidence - or the gadget address was the data.
-                    curr_chain.append((curr, "hand-picked?", "data"))
+                    curr_chain.append((curr, "thrashed?", "data"))
                     curr_chain_len += 1
+                    curr = cd.read(PTR_SIZE)
                     continue
 
 
