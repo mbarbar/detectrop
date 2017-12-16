@@ -237,6 +237,24 @@ def add_shared_lib_offsets(offsets, coredump):
             offsets[table_entry[-1].rstrip('\n')] =\
                 struct.pack("L", int(table_entry[0], 16))
 
+def check_payload(gadget_dict, payload):
+    # 1. If we have 6 equal, adjacent gadgets, it's probably a bad match
+    # as core dumps have a lot of instances of tons of duplicate garbage.
+    dup = 0
+    prev_addr = None
+    for gadget in payload:
+        addr = gadget[0]
+        if addr == prev_addr:
+            dup += 1
+        else:
+            dup = 0
+
+        if dup >= 6 and addr in gadget_dict:
+            return False
+
+        prev_addr = addr
+
+    return True
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
@@ -262,6 +280,7 @@ if __name__ == "__main__":
     analyse_gadgets(gadgets)
 
     payloads = search_coredump(gadgets, coredump)
+    payloads[:] = [p for p in payloads if check_payload(gadgets, p)]
 
     print_sources(offsets)
     print_payloads(payloads)
