@@ -13,6 +13,7 @@ MIN_CHAIN_LENGTH = 3
 
 """Tuple to be associated with each gadget address.
     asm      : textual representation of instructions.
+    source   : file the gadget comes from.
     pops     : number of pop instructions in gadget.
     pushes   : number of push instructions in gadget.
     calls    : number of call instructions in gadget.
@@ -23,7 +24,8 @@ MIN_CHAIN_LENGTH = 3
                the stack.
 """
 GadgetInfo = collections.namedtuple("GadgetInfo",
-                                    "asm pops pushes calls d_before d_after")
+                                    "asm source pops pushes calls " +\
+                                    "d_before d_after")
 
 def write_gadgets(gadget_file):
     with open(gadget_file, 'w') as gf:
@@ -42,7 +44,7 @@ def populate_gadget_addresses(gadgets_dict, gadget_file):
                 continue
 
             gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
-                = GadgetInfo(match.group(2), None, None, None, None, None)
+                = GadgetInfo(match.group(2), None, None, None, None, None, None)
 
 def count_instructions(instruction, asm):
     substr = " {} ".format(instruction)
@@ -198,6 +200,24 @@ def print_payloads(payloads):
             print("  {0:#08x} : {1}".format(struct.unpack("L", gadget[0])[0],
                                             gadget[1]))
 
+def add_shared_lib_offsets(offsets, coredump):
+    shared_lib_file = "shared_lib_file"  # TODO: unique name?
+    with open(shared_lib_file, 'rw') as slf:
+        subprocess.call(["gdb", "-c", coredump, "-batch", "-ex", "info shared"],
+                        stdout=slf)
+
+        # First group: where lib is loaded, second group: lib path.
+        for line in slf.readlines():
+            if not line.startswith("0x"):
+                # GDB rubbish.
+                continue
+
+            table_entry = line.split(" ")
+
+            offsets[table_entry[-1].rstrip('\n')] =\
+                struct.pack("L", int(table_entry[0], 16))
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("{}: missing core dump and/or binary".format(sys.argv[0]))
@@ -212,6 +232,10 @@ if __name__ == "__main__":
 
     gadget_file = "gadget_file"  # TODO: unique name?
     write_gadgets(gadget_file)
+
+    offsets = {}
+    add_shared_lib_offsets(offsets, coredump)
+    print(offsets)
 
     gadgets = {}
     populate_gadget_addresses(gadgets, gadget_file)
