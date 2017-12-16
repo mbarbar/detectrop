@@ -118,7 +118,8 @@ def search_coredump(gadget_dict, coredump):
 
                 last_d_after = gadget_info.d_after
                 asm = gadget_info.asm
-                curr_chain.append((curr, asm))
+                source = gadget_info.source
+                curr_chain.append((curr, source, asm))
                 curr_chain_len += 1
             except:
                 # Not matching.
@@ -207,8 +208,8 @@ def print_payloads(payloads):
     for i, payload in zip(range(1, len(payloads) + 1), payloads):
         print("Payload #{}".format(i))
         for gadget in payload:
-            print("  {0:#08x} : {1}".format(struct.unpack("L", gadget[0])[0],
-                                            gadget[1]))
+            print("  {0:#08x} [{1}]: {2}".format(
+                struct.unpack("L", gadget[0])[0], gadget[1], gadget[2]))
 
 def add_shared_lib_offsets(offsets, coredump):
     shared_lib_file = "shared_lib_file"  # TODO: unique name?
