@@ -8,6 +8,8 @@ import sys
 import subprocess
 import struct
 
+import resource
+
 PTR_SIZE = 8
 MIN_CHAIN_LENGTH = 3
 
@@ -257,6 +259,10 @@ if __name__ == "__main__":
     payloads = search_coredump(gadgets, coredump)
 
     print_payloads(payloads)
+
+    print(str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) +\
+          "KB (max rss)")
+    print("# of gadgets: " + str(len(gadgets)))
 
     #print(gadgets)
     #for key in gadgets.keys():
