@@ -134,6 +134,7 @@ def search_coredump(gadget_dict, coredump):
     with open(coredump, "rb") as cd:
         curr_chain_len = 0
         curr_chain = []
+        curr_chain_start = 0
         curr = cd.read(PTR_SIZE)
 
         last_d_after = 0
@@ -145,6 +146,8 @@ def search_coredump(gadget_dict, coredump):
                 last_d_after = gadget_info.d_after
                 asm = gadget_info.asm
                 source = gadget_info.source
+                if curr_chain_len == 0:
+                    curr_chain_start = cd.tell() - PTR_SIZE
                 curr_chain.append((curr, source, asm))
                 curr_chain_len += 1
             except:
@@ -218,7 +221,7 @@ def search_coredump(gadget_dict, coredump):
                 if curr_chain_len != 0:
                     if curr_chain_len >= MIN_CHAIN_LENGTH:
                         # Potential payload.
-                        chains.append(curr_chain)
+                        chains.append((curr_chain_start, curr_chain))
 
                     curr_chain = []
                     curr_chain_len = 0
@@ -228,7 +231,7 @@ def search_coredump(gadget_dict, coredump):
 
         if curr_chain_len >= MIN_CHAIN_LENGTH:
             # Potential payload at the end.
-            chains.append(curr_chain)
+            chains.append((curr_chain_start, curr_chain))
 
     return chains
 
@@ -241,9 +244,10 @@ def print_sources(offsets):
 def print_payloads(payloads):
     print("Found {} potential payloads".format(len(payloads)))
     for i, payload in zip(range(1, len(payloads) + 1), payloads):
-        print("Payload #{}".format(i))
-        for gadget in payload:
-            print("  {0:#018x} [{1}]: {2}".format(
+        print("  Payload #{} - length: {} - location: {}"\
+              .format(i, len(payload[1]), hex(payload[0])))
+        for gadget in payload[1]:
+            print("    {0:#018x} [{1}]: {2}".format(
                 struct.unpack("L", gadget[0])[0], gadget[1], gadget[2]))
 
 def add_shared_lib_offsets(offsets, coredump):
@@ -306,7 +310,7 @@ if __name__ == "__main__":
     populate_function_addresses(offsets, gadgets)
 
     payloads = search_coredump(gadgets, coredump)
-    payloads[:] = [p for p in payloads if check_payload(gadgets, p)]
+    payloads[:] = [p for p in payloads if check_payload(gadgets, p[1])]
 
     print("")
     print_sources(offsets)
