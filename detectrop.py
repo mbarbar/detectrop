@@ -38,7 +38,7 @@ def write_gadgets(gadget_file):
 def populate_gadget_addresses(offsets, gadgets_dict, gadget_file):
     line_pattern = re.compile("(^0x[0-9a-f]+) : (.*)")
     for binary, offset in offsets.items():
-        with open(gadget_file, 'rx+') as gf:
+        with open(gadget_file, 'w+') as gf:
             subprocess.call(["ROPgadget", "--depth", "8", "--all",
                              "--offset", hex(struct.unpack("L", offset)[0]),
                              "--binary", binary],
@@ -221,7 +221,7 @@ def print_payloads(payloads):
 
 def add_shared_lib_offsets(offsets, coredump):
     shared_lib_file = "shared_lib_file"  # TODO: unique name?
-    with open(shared_lib_file, 'r+') as slf:
+    with open(shared_lib_file, 'w+') as slf:
         subprocess.call(["gdb", "-c", coredump, "-batch", "-ex", "info shared"],
                         stdout=slf)
 
