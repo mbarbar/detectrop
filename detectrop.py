@@ -29,14 +29,10 @@ GadgetInfo = collections.namedtuple("GadgetInfo",
                                     "asm source pops pushes calls " +\
                                     "d_before d_after")
 
-def write_gadgets(gadget_file):
-    with open(gadget_file, 'w') as gf:
-        subprocess.call(("ROPgadget --depth 8 --all --binary "
-                         + binary).split(' '), stdout=gf)
-
-
-def populate_gadget_addresses(offsets, gadgets_dict, gadget_file):
+def populate_gadget_addresses(offsets, gadgets_dict):
     line_pattern = re.compile("(^0x[0-9a-f]+) : (.*)")
+    gadget_file = "gadget_file"  # TODO: unique name?
+
     for binary, offset in offsets.items():
         with open(gadget_file, 'w+') as gf:
             subprocess.call(["ROPgadget", "--depth", "8", "--all",
@@ -57,6 +53,34 @@ def populate_gadget_addresses(offsets, gadgets_dict, gadget_file):
                 gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
                     = GadgetInfo(match.group(2), binary, None, None, None,
                                  None, None)
+
+def populate_function_addresses(offsets, gadgets_dict):
+    line_pattern = re.compile("(^[0-9a-f]+) (.) (.*)")
+    function_file = "function_file"  # TODO: unique name?
+    for binary, offset in offsets.items():
+        with open(function_file, 'w+') as ff:
+            subprocess.call(["nm", binary], stdout=ff)
+
+            ff.write("GENERATED FROM: " + binary)
+
+            ff.seek(0)
+            for line in ff:
+                # Match the address, type, and name nm's output.
+                match = re.match(line_pattern, line)
+                if match is None:
+                    # Some lines won't much but we don't need them.
+                    continue
+
+                if match.group(2) not in "Tt":
+                    # We only want local functions.
+                    continue
+
+                gadgets_dict[struct.pack("L", int(match.group(1), 16)\
+                                              + struct.unpack("L", offset)[0])]\
+                    = GadgetInfo("[function : {}]".format(match.group(3)),
+                                 binary, 0, 0, 0, 2, 0)
+                # ^2 is hardcoded - function calls will thrash a lot of the
+                # payload.
 
 def count_instructions(instruction, asm):
     substr = " {} ".format(instruction)
@@ -268,16 +292,15 @@ if __name__ == "__main__":
 
     print("{}: core dump - {} ; binary - {}".format(exe, coredump, binary))
 
-    gadget_file = "gadget_file"  # TODO: unique name?
-    write_gadgets(gadget_file)
 
     offsets = {}
     offsets[binary] = struct.pack("L", 0)
     add_shared_lib_offsets(offsets, coredump)
 
     gadgets = {}
-    populate_gadget_addresses(offsets, gadgets, gadget_file)
+    populate_gadget_addresses(offsets, gadgets)
     analyse_gadgets(gadgets)
+    populate_function_addresses(offsets, gadgets)
 
     payloads = search_coredump(gadgets, coredump)
     payloads[:] = [p for p in payloads if check_payload(gadgets, p)]
