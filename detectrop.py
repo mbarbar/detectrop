@@ -216,7 +216,7 @@ def print_payloads(payloads):
     for i, payload in zip(range(1, len(payloads) + 1), payloads):
         print("Payload #{}".format(i))
         for gadget in payload:
-            print("  {0:#08x} [{1}]: {2}".format(
+            print("  {0:#018x} [{1}]: {2}".format(
                 struct.unpack("L", gadget[0])[0], gadget[1], gadget[2]))
 
 def add_shared_lib_offsets(offsets, coredump):
