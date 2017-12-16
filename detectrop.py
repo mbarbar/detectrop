@@ -115,11 +115,11 @@ def analyse_gadgets(gadget_dict):
             # We might push further before the gadget or pop
             # further after it.
             if d < 0:
-                if abs(d) > d_before:
-                    d_before = abs(d)
+                if abs(d) > d_after:
+                    d_after = abs(d)
             else:
-                if d > d_after:
-                    d_after = d
+                if d > d_before:
+                    d_before = d
 
         gadget_dict[gadget] = gadget_dict[gadget]._replace(pops=pops,
                                                            pushes=pushes,
@@ -151,13 +151,15 @@ def search_coredump(gadget_dict, coredump):
                 # Not matching.
                 # 1. Did the last gadget potentially have garbage afterwards?
                 if last_d_after != 0:
-                    curr = cd.read(PTR_SIZE)
+                    curr_chain.append((curr, "thrashed?", "data"))
+                    curr_chain_len += 1
+
                     for i in range(last_d_after - 1):
                         curr = cd.read(PTR_SIZE)
                         if curr is None:
                             break
 
-                        curr_chain.append((curr, "data"))
+                        curr_chain.append((curr, "thrashed?", "data"))
                         curr_chain_len += 1
 
                     curr = cd.read(PTR_SIZE)
@@ -175,7 +177,6 @@ def search_coredump(gadget_dict, coredump):
 
                 # 2. Read 3 ahead, is there a gadget there that has garbage
                 #    before it?
-                """
                 skipped = 1
                 found = False
                 for skipped in range(1, 4):
@@ -183,11 +184,11 @@ def search_coredump(gadget_dict, coredump):
                     if curr is None:
                         break
 
-                    curr_chain.append((curr, "data"))
-                    curr_chain_len += 1
-
                     if curr not in gadget_dict:
+                        curr_chain.append((curr, "hand-picked?", "data"))
+                        curr_chain_len += 1
                         continue
+
 
                     # There's a gadget - does it have garbage before?
                     gadget_info = gadget_dict[curr]
@@ -197,19 +198,19 @@ def search_coredump(gadget_dict, coredump):
                         break
 
                     # Coincidence - or the gadget address was the data.
+                    curr_chain.append((curr, "hand-picked?", "data"))
+                    curr_chain_len += 1
                     continue
 
 
                 if found:
-                    curr_chain_len += skipped
                     # It'll be matched.
                     continue
 
                 # Not found - remove all which has been skipped.
-                for i in range(1, skipped):
+                for i in range(0, skipped):
                     curr_chain.pop()
                     curr_chain_len -= 1
-                """
 
                 # Chain has ended.
                 if curr_chain_len != 0:
@@ -273,7 +274,7 @@ def check_payload(gadget_dict, payload):
         else:
             dup = 0
 
-        if dup >= 10 and addr in gadget_dict:
+        if dup >= 9 and addr in gadget_dict:
             return False
 
         prev_addr = addr
