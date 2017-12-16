@@ -33,18 +33,28 @@ def write_gadgets(gadget_file):
                          + binary).split(' '), stdout=gf)
 
 
-def populate_gadget_addresses(gadgets_dict, gadget_file):
+def populate_gadget_addresses(offsets, gadgets_dict, gadget_file):
     line_pattern = re.compile("(^0x[0-9a-f]+) : (.*)")
-    with open(gadget_file, 'r') as gf:
-        for line in gf:
-            # Match the address and asm from ROPgadget's output.
-            match = re.match(line_pattern, line)
-            if match is None:
-                # Not a gadget line (auxiliary ROPgadget output).
-                continue
+    for binary, offset in offsets.items():
+        with open(gadget_file, 'rx+') as gf:
+            subprocess.call(["ROPgadget", "--depth", "8", "--all",
+                             "--offset", hex(struct.unpack("L", offset)[0]),
+                             "--binary", binary],
+                            stdout=gf)
 
-            gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
-                = GadgetInfo(match.group(2), None, None, None, None, None, None)
+            gf.write("GENERATED FROM: " + binary)
+
+            gf.seek(0)
+            for line in gf:
+                # Match the address and asm from ROPgadget's output.
+                match = re.match(line_pattern, line)
+                if match is None:
+                    # Not a gadget line (auxiliary ROPgadget output).
+                    continue
+
+                gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
+                    = GadgetInfo(match.group(2), binary, None, None, None,
+                                 None, None)
 
 def count_instructions(instruction, asm):
     substr = " {} ".format(instruction)
@@ -202,11 +212,12 @@ def print_payloads(payloads):
 
 def add_shared_lib_offsets(offsets, coredump):
     shared_lib_file = "shared_lib_file"  # TODO: unique name?
-    with open(shared_lib_file, 'rw') as slf:
+    with open(shared_lib_file, 'r+') as slf:
         subprocess.call(["gdb", "-c", coredump, "-batch", "-ex", "info shared"],
                         stdout=slf)
 
         # First group: where lib is loaded, second group: lib path.
+        slf.seek(0)
         for line in slf.readlines():
             if not line.startswith("0x"):
                 # GDB rubbish.
@@ -236,9 +247,10 @@ if __name__ == "__main__":
     offsets = {}
     offsets[binary] = struct.pack("L", 0)
     add_shared_lib_offsets(offsets, coredump)
+    print(offsets)
 
     gadgets = {}
-    populate_gadget_addresses(gadgets, gadget_file)
+    populate_gadget_addresses(offsets, gadgets, gadget_file)
     analyse_gadgets(gadgets)
 
     payloads = search_coredump(gadgets, coredump)
