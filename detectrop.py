@@ -205,6 +205,12 @@ def search_coredump(gadget_dict, coredump):
 
     return chains
 
+def print_sources(offsets):
+    print("Gadget sources")
+    for shared_lib, offset in offsets.items():
+        print("  {0:#018x}  [{1}]".format(struct.unpack("L", offset)[0],
+                                          shared_lib))
+
 def print_payloads(payloads):
     print("Found {} potential payloads".format(len(payloads)))
     for i, payload in zip(range(1, len(payloads) + 1), payloads):
@@ -250,7 +256,6 @@ if __name__ == "__main__":
     offsets = {}
     offsets[binary] = struct.pack("L", 0)
     add_shared_lib_offsets(offsets, coredump)
-    print(offsets)
 
     gadgets = {}
     populate_gadget_addresses(offsets, gadgets, gadget_file)
@@ -258,6 +263,7 @@ if __name__ == "__main__":
 
     payloads = search_coredump(gadgets, coredump)
 
+    print_sources(offsets)
     print_payloads(payloads)
 
     print(str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) +\
