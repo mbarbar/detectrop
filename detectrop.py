@@ -10,9 +10,11 @@ import resource
 import struct
 import subprocess
 import sys
+import tempfile
 
 WORD_SIZE = 8
 MIN_CHAIN_LENGTH = 5
+tmp_file = None
 
 """Tuple to be associated with each gadget address.
     asm      : textual representation of instructions.
@@ -38,10 +40,9 @@ GadgetInfo = collections.namedtuple("GadgetInfo",
 """
 def populate_gadget_addresses(offsets, gadgets_dict):
     line_pattern = re.compile("(^0x[0-9a-f]+) : (.*)")
-    gadget_file = "gadget_file"  # TODO: unique name?
 
     for binary, offset in offsets.items():
-        with open(gadget_file, 'w+') as gf:
+        with open(tmp_file, 'w+') as gf:
             subprocess.call(["ROPgadget", "--depth", "8", "--all",
                              "--offset", hex(struct.unpack("L", offset)[0]),
                              "--binary", binary],
@@ -67,9 +68,9 @@ def populate_gadget_addresses(offsets, gadgets_dict):
 """
 def populate_function_addresses(offsets, gadgets_dict):
     line_pattern = re.compile("(^[0-9a-f]+) (.) (.*)")
-    function_file = "function_file"  # TODO: unique name?
+
     for binary, offset in offsets.items():
-        with open(function_file, 'w+') as ff:
+        with open(tmp_file, 'w+') as ff:
             subprocess.call(["nm", binary], stdout=ff)
 
             ff.write("GENERATED FROM: " + binary)
@@ -292,8 +293,7 @@ def print_payloads(payloads):
    to offsets.
 """
 def add_shared_lib_offsets(offsets, coredump):
-    shared_lib_file = "shared_lib_file"  # TODO: unique name?
-    with open(shared_lib_file, 'w+') as slf:
+    with open(tmp_file, 'w+') as slf:
         subprocess.call(["gdb", "-c", coredump, "-batch", "-ex", "info shared"],
                         stdout=slf)
 
@@ -351,6 +351,11 @@ if __name__ == "__main__":
 
     print("{}: core dump - {} ; binary - {}".format(exe, coredump, binary))
 
+    tmp_file = tempfile.mkstemp()
+    os.close(tmp_file[0])
+    # Use the name
+    tmp_file = tmp_file[1]
+
     offsets = {}
     offsets[binary] = struct.pack("L", 0)
     add_shared_lib_offsets(offsets, coredump)
@@ -367,6 +372,8 @@ if __name__ == "__main__":
     print_sources(offsets)
     print("")
     print_payloads(payloads)
+
+    os.remove(tmp_file)
 
     print(str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) +\
           "KB (max rss)")
