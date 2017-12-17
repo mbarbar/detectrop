@@ -4,13 +4,12 @@ from __future__ import print_function
 
 import collections
 import re
-import sys
-import subprocess
-import struct
-
 import resource
+import struct
+import subprocess
+import sys
 
-PTR_SIZE = 8
+WORD_SIZE = 8
 MIN_CHAIN_LENGTH = 5
 
 """Tuple to be associated with each gadget address.
@@ -32,6 +31,9 @@ GadgetInfo = collections.namedtuple("GadgetInfo",
                                     "asm source pops pushes calls ints " +\
                                     "irets d_before d_after")
 
+"""Populates gadgets_dict with all the gadgets found in the
+   binaries in offsets, accounting for the load location.
+"""
 def populate_gadget_addresses(offsets, gadgets_dict):
     line_pattern = re.compile("(^0x[0-9a-f]+) : (.*)")
     gadget_file = "gadget_file"  # TODO: unique name?
@@ -57,6 +59,10 @@ def populate_gadget_addresses(offsets, gadgets_dict):
                     = GadgetInfo(match.group(2), binary, None, None, None,
                                  None, None, None, None)
 
+"""Adds to gadgets_dict all functions found in the binaries in
+   offsets, accounting for the load locations. Sets d_before to
+   2 and other numerical fields to 0 in GadgetInfo.
+"""
 def populate_function_addresses(offsets, gadgets_dict):
     line_pattern = re.compile("(^[0-9a-f]+) (.) (.*)")
     function_file = "function_file"  # TODO: unique name?
@@ -85,10 +91,10 @@ def populate_function_addresses(offsets, gadgets_dict):
                 # ^2 is hardcoded - function calls will thrash a lot of the
                 # payload.
 
-def count_instructions(instruction, asm):
-    substr = " {} ".format(instruction)
-    return asm.count(substr)
-
+"""Analyses the gadgets in gadget_dict. Gadgets are checked to see how
+   much unspecific data may be contained before or after them on the
+   stack. Certain instructions are also counted for debugging.
+"""
 def analyse_gadgets(gadget_dict):
     for gadget in gadget_dict.iterkeys():
         asm = gadget_dict[gadget].asm
@@ -146,6 +152,7 @@ def analyse_gadgets(gadget_dict):
                                                            d_after=d_after)
 
 
+"""Searches the core dump for what look like payloads."""
 def search_coredump(gadget_dict, coredump):
     chains = []
 
@@ -153,7 +160,7 @@ def search_coredump(gadget_dict, coredump):
         curr_chain_len = 0
         curr_chain = []
         curr_chain_start = 0
-        curr = cd.read(PTR_SIZE)
+        curr = cd.read(WORD_SIZE)
 
         last_d_after = 0
         while curr != "":
@@ -166,7 +173,7 @@ def search_coredump(gadget_dict, coredump):
                 source = gadget_info.source
 
                 if curr_chain_len == 0:
-                    curr_chain_start = cd.tell() - PTR_SIZE
+                    curr_chain_start = cd.tell() - WORD_SIZE
                 curr_chain.append((curr, source, asm))
                 curr_chain_len += 1
             except:
@@ -177,14 +184,14 @@ def search_coredump(gadget_dict, coredump):
                     curr_chain_len += 1
 
                     for i in range(last_d_after - 1):
-                        curr = cd.read(PTR_SIZE)
+                        curr = cd.read(WORD_SIZE)
                         if curr is None:
                             break
 
                         curr_chain.append((curr, "hand-picked?", "data"))
                         curr_chain_len += 1
 
-                    curr = cd.read(PTR_SIZE)
+                    curr = cd.read(WORD_SIZE)
 
                     try:
                         gadget_info = gadget_dict[curr]
@@ -209,7 +216,7 @@ def search_coredump(gadget_dict, coredump):
                     if curr not in gadget_dict:
                         curr_chain.append((curr, "thrashed?", "data"))
                         curr_chain_len += 1
-                        curr = cd.read(PTR_SIZE)
+                        curr = cd.read(WORD_SIZE)
                         continue
 
 
@@ -223,7 +230,7 @@ def search_coredump(gadget_dict, coredump):
                     # Coincidence - or the gadget address was the data.
                     curr_chain.append((curr, "thrashed?", "data"))
                     curr_chain_len += 1
-                    curr = cd.read(PTR_SIZE)
+                    curr = cd.read(WORD_SIZE)
                     continue
 
 
@@ -244,15 +251,15 @@ def search_coredump(gadget_dict, coredump):
                     else:
                         # We want to reconsider what we skipped as
                         # garbage.
-                        cd.seek(-PTR_SIZE * last_d_after, 1)
-                        cd.seek(-PTR_SIZE * skipped, 1)
+                        cd.seek(-WORD_SIZE * last_d_after, 1)
+                        cd.seek(-WORD_SIZE * skipped, 1)
 
                     curr_chain = []
                     curr_chain_len = 0
                     last_d_after = 0
 
 
-            curr = cd.read(PTR_SIZE)
+            curr = cd.read(WORD_SIZE)
 
         if curr_chain_len >= MIN_CHAIN_LENGTH:
             # Potential payload at the end.
@@ -260,12 +267,16 @@ def search_coredump(gadget_dict, coredump):
 
     return chains
 
+"""Outputs binary names whose gadgets are included in the search
+   and where in virtual memory they are loaded.
+"""
 def print_sources(offsets):
     print("Gadget sources")
     for shared_lib, offset in offsets.items():
         print("  {0:#018x} [{1}]".format(struct.unpack("L", offset)[0],
                                          shared_lib))
 
+"""Outputs the payloads found by search_coredump."""
 def print_payloads(payloads):
     print("Found {} potential payloads".format(len(payloads)))
     for i, payload in zip(range(1, len(payloads) + 1), payloads):
@@ -275,6 +286,9 @@ def print_payloads(payloads):
             print("    {0:#018x} [{1}]: {2}".format(
                 struct.unpack("L", gadget[0])[0], gadget[1], gadget[2]))
 
+"""Adds loaded shared libraries and the location at which they were loaded
+   to offsets.
+"""
 def add_shared_lib_offsets(offsets, coredump):
     shared_lib_file = "shared_lib_file"  # TODO: unique name?
     with open(shared_lib_file, 'w+') as slf:
@@ -293,8 +307,12 @@ def add_shared_lib_offsets(offsets, coredump):
             offsets[table_entry[-1].rstrip('\n')] =\
                 struct.pack("L", int(table_entry[0], 16))
 
+"""Returns True when a payload from search_coredump looks real, and
+   False otherwise. This is to weed out strange payloads (e.g. same
+   gadget 10 times in a row.
+"""
 def check_payload(gadget_dict, payload):
-    # 1. If we have 6 equal, adjacent gadgets, it's probably a bad match
+    # 1. If we have 10 equal, adjacent gadgets, it's probably a bad match
     # as core dumps have a lot of instances of tons of duplicate garbage.
     dup = 0
     prev_addr = None
@@ -323,7 +341,6 @@ if __name__ == "__main__":
     binary   = sys.argv[2]
 
     print("{}: core dump - {} ; binary - {}".format(exe, coredump, binary))
-
 
     offsets = {}
     offsets[binary] = struct.pack("L", 0)
