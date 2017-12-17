@@ -171,7 +171,11 @@ def search_coredump(gadget_dict, coredump):
                 gadget_info = gadget_dict[curr]
                 # We have a match
 
-                last_d_after = gadget_info.d_after
+                if gadget_info.d_after > last_d_after - 1:
+                    last_d_after = gadget_info.d_after
+                else:
+                    last_d_after -= 1
+
                 asm = gadget_info.asm
                 source = gadget_info.source
 
