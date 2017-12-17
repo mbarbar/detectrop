@@ -318,7 +318,7 @@ def add_shared_lib_offsets(offsets, coredump):
 
 """Returns True when a payload from search_coredump looks real, and
    False otherwise. This is to weed out strange payloads (e.g. same
-   gadget 10 times in a row.
+   gadget 10 times in a row).
 """
 def check_payload(gadget_dict, payload):
     # 1. If we have 10 equal, adjacent gadgets, it's probably a bad match
@@ -336,6 +336,18 @@ def check_payload(gadget_dict, payload):
             return False
 
         prev_addr = addr
+
+    # 2. Payloads with only a single instruction and the rest being data.
+    instr_count = 0
+    data_count = 0
+    for gadget in payload:
+        if gadget[2] == "data":
+            data_count += 1
+        else:
+            instr_count += 1
+
+    if instr_count == 1:
+        return False
 
     return True
 
