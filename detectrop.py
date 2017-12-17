@@ -200,6 +200,7 @@ def search_coredump(gadget_dict, coredump):
 
                     curr = cd.read(WORD_SIZE)
 
+                    last_d_after = 0
                     try:
                         gadget_info = gadget_dict[curr]
                         # We're good to keep moving and we'll match
@@ -240,7 +241,6 @@ def search_coredump(gadget_dict, coredump):
                     curr = cd.read(WORD_SIZE)
                     continue
 
-
                 if found:
                     # It'll be matched.
                     continue
@@ -250,21 +250,24 @@ def search_coredump(gadget_dict, coredump):
                     curr_chain.pop()
                     curr_chain_len -= 1
 
+                rollback = True
                 # Chain has ended.
                 if curr_chain_len != 0:
                     if curr_chain_len >= MIN_CHAIN_LENGTH:
                         # Potential payload.
                         chains.append((curr_chain_start, curr_chain))
-                    else:
-                        # We want to reconsider what we skipped as
-                        # garbage.
-                        cd.seek(-WORD_SIZE * last_d_after, 1)
-                        cd.seek(-WORD_SIZE * skipped, 1)
 
                     curr_chain = []
                     curr_chain_len = 0
                     last_d_after = 0
 
+                    # Don't rollback because we used the garbage!
+                    rollback = False
+
+                if rollback and curr != "":
+                    cd.seek(-WORD_SIZE * last_d_after, 1)
+                    last_d_after = 0
+                    cd.seek(-WORD_SIZE * skipped, 1)
 
             curr = cd.read(WORD_SIZE)
 
