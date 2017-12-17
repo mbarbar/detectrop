@@ -108,6 +108,9 @@ def analyse_gadgets(gadget_dict):
             elif "push" in instruction:
                 pushes += 1
                 d += 1
+            elif "syscall" in instruction:
+                # Do nothing - syscall requires a manual push.
+                pass
             else:  # call in instruction
                 calls += 1
                 d += 1
