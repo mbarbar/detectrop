@@ -368,19 +368,15 @@ if __name__ == "__main__":
     payloads = search_coredump(gadgets, coredump)
     payloads[:] = [p for p in payloads if check_payload(gadgets, p[1])]
 
-    print("")
+    print()
     print_sources(offsets)
-    print("")
+    print()
     print_payloads(payloads)
 
     os.remove(tmp_file)
 
-    print(str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) +\
-          "KB (max rss)")
-    print("# of gadgets: " + str(len(gadgets)))
-
-    #print(gadgets)
-    #for key in gadgets.keys():
-    #    print("   :" + str(gadgets[key]))
-    #print(payloads)
+    print()
+    print("Total number of gadgets: {}".format(len(gadgets)))
+    print("Maximum resident set size: {}KB"\
+          .format(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
 
