@@ -3,6 +3,8 @@
 from __future__ import print_function
 
 import collections
+import os
+import os.path
 import re
 import resource
 import struct
@@ -332,13 +334,20 @@ def check_payload(gadget_dict, payload):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("{}: missing core dump and/or binary".format(sys.argv[0]))
+        print("usage: {} COREDUMP BINARY".format(sys.argv[0]))
         sys.exit(1)
-        # TODO: better usage
 
     exe      = sys.argv[0]
     coredump = sys.argv[1]
     binary   = sys.argv[2]
+
+    if not (os.path.isfile(binary) and os.access(binary, os.R_OK)):
+        print("{}: cannot read binary '{}'".format(exe, binary))
+        sys.exit(2)
+
+    if not (os.path.isfile(coredump) and os.access(coredump, os.R_OK)):
+        print("{}: cannot read core dump '{}'".format(exe, coredump))
+        sys.exit(2)
 
     print("{}: core dump - {} ; binary - {}".format(exe, coredump, binary))
 
