@@ -11,7 +11,7 @@ import struct
 import resource
 
 PTR_SIZE = 8
-MIN_CHAIN_LENGTH = 4
+MIN_CHAIN_LENGTH = 5
 
 """Tuple to be associated with each gadget address.
     asm      : textual representation of instructions.
@@ -19,14 +19,16 @@ MIN_CHAIN_LENGTH = 4
     pops     : number of pop instructions in gadget.
     pushes   : number of push instructions in gadget.
     calls    : number of call instructions in gadget.
+    ints     : number of int instructions in gadget.
     d_before : Maximum number of data words (i.e. not special addresses)
                that *may* be present BEFORE this gadget. Comes from
-               pushing to the stack (incl. calls).
+               pushing to the stack (incl. calls). 1 is added to simplify
+               search.
     d_after  : Like d_before but AFTER the gadget. Comes from popping from
                the stack.
 """
 GadgetInfo = collections.namedtuple("GadgetInfo",
-                                    "asm source pops pushes calls " +\
+                                    "asm source pops pushes calls ints " +\
                                     "d_before d_after")
 
 def populate_gadget_addresses(offsets, gadgets_dict):
@@ -52,7 +54,7 @@ def populate_gadget_addresses(offsets, gadgets_dict):
 
                 gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
                     = GadgetInfo(match.group(2), binary, None, None, None,
-                                 None, None)
+                                 None, None, None)
 
 def populate_function_addresses(offsets, gadgets_dict):
     line_pattern = re.compile("(^[0-9a-f]+) (.) (.*)")
@@ -71,14 +73,14 @@ def populate_function_addresses(offsets, gadgets_dict):
                     # Some lines won't much but we don't need them.
                     continue
 
-                if match.group(2) not in "Tt":
+                if match.group(2) not in "WwTt":
                     # We only want local functions.
                     continue
 
                 gadgets_dict[struct.pack("L", int(match.group(1), 16)\
                                               + struct.unpack("L", offset)[0])]\
                     = GadgetInfo("[function : {}]".format(match.group(3)),
-                                 binary, 0, 0, 0, 2, 0)
+                                 binary, 0, 0, 0, 0, 2, 0)
                 # ^2 is hardcoded - function calls will thrash a lot of the
                 # payload.
 
@@ -93,21 +95,25 @@ def analyse_gadgets(gadget_dict):
         pops   = 0
         pushes = 0
         calls  = 0
-        d_after = 0
+        ints   = 0
+        d_after  = 0
         d_before = 0
+
         d = 0
 
         # Count instructions - work out how much data we can have before/after.
-        instr_pattern = re.compile("pop|push|call")
+        instr_pattern = re.compile("pop|push|call|int")
         instructions_found = re.findall(instr_pattern, asm)
         for instruction in instructions_found:
-            # TODO: see if it's worth handling variants - probably not.
             if "pop" in instruction:
                 pops += 1
                 d -= 1
             elif "push" in instruction:
                 pushes += 1
                 d += 1
+            elif "int" in instruction:
+                ints += 1
+                d += 2
             elif "syscall" in instruction:
                 # Do nothing - syscall requires a manual push.
                 pass
@@ -127,7 +133,8 @@ def analyse_gadgets(gadget_dict):
         gadget_dict[gadget] = gadget_dict[gadget]._replace(pops=pops,
                                                            pushes=pushes,
                                                            calls=calls,
-                                                           d_before=d_before,
+                                                           ints=ints,
+                                                           d_before=d_before + 1,
                                                            d_after=d_after)
 
 
