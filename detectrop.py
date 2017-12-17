@@ -349,14 +349,14 @@ def check_payload(gadget_dict, payload):
     if instr_count == 1:
         return False
 
-    # 3. Payloads with only functions beginning with _ (compiler) and data.
-    f__count = 0
+    # 3. Payloads with only functions and data are probably not payloads.
+    f_count = 0
     # data already counted before
     for gadget in payload:
-        if "function : _" in gadget[2]:
-            f__count += 1
+        if "function :" in gadget[2]:
+            f_count += 1
 
-    if f__count + data_count == len(payload):
+    if f_count + data_count == len(payload):
         return False
 
     return True
