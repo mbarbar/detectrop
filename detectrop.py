@@ -20,6 +20,7 @@ MIN_CHAIN_LENGTH = 5
     pushes   : number of push instructions in gadget.
     calls    : number of call instructions in gadget.
     ints     : number of int instructions in gadget.
+    iret     : number of iret instructions in gadget.
     d_before : Maximum number of data words (i.e. not special addresses)
                that *may* be present BEFORE this gadget. Comes from
                pushing to the stack (incl. calls). 1 is added to simplify
@@ -29,7 +30,7 @@ MIN_CHAIN_LENGTH = 5
 """
 GadgetInfo = collections.namedtuple("GadgetInfo",
                                     "asm source pops pushes calls ints " +\
-                                    "d_before d_after")
+                                    "irets d_before d_after")
 
 def populate_gadget_addresses(offsets, gadgets_dict):
     line_pattern = re.compile("(^0x[0-9a-f]+) : (.*)")
@@ -54,7 +55,7 @@ def populate_gadget_addresses(offsets, gadgets_dict):
 
                 gadgets_dict[struct.pack("L", int(match.group(1), 16))]\
                     = GadgetInfo(match.group(2), binary, None, None, None,
-                                 None, None, None)
+                                 None, None, None, None)
 
 def populate_function_addresses(offsets, gadgets_dict):
     line_pattern = re.compile("(^[0-9a-f]+) (.) (.*)")
@@ -80,7 +81,7 @@ def populate_function_addresses(offsets, gadgets_dict):
                 gadgets_dict[struct.pack("L", int(match.group(1), 16)\
                                               + struct.unpack("L", offset)[0])]\
                     = GadgetInfo("[function : {}]".format(match.group(3)),
-                                 binary, 0, 0, 0, 0, 2, 0)
+                                 binary, 0, 0, 0, 0, 0, 2, 0)
                 # ^2 is hardcoded - function calls will thrash a lot of the
                 # payload.
 
@@ -96,17 +97,23 @@ def analyse_gadgets(gadget_dict):
         pushes = 0
         calls  = 0
         ints   = 0
+        irets  = 0
         d_after  = 0
         d_before = 0
 
         d = 0
 
         # Count instructions - work out how much data we can have before/after.
-        instr_pattern = re.compile("pop|push|call|int")
+        instr_pattern = re.compile("pop|push|call|int|iret")
         instructions_found = re.findall(instr_pattern, asm)
         for instruction in instructions_found:
             if "pop" in instruction:
                 pops += 1
+                d -= 1
+            elif "iret" in instruction:
+                irets += 1
+                # Though it actually pops twice, we treat it as a
+                # normal ret after the first pop.
                 d -= 1
             elif "push" in instruction:
                 pushes += 1
@@ -134,6 +141,7 @@ def analyse_gadgets(gadget_dict):
                                                            pushes=pushes,
                                                            calls=calls,
                                                            ints=ints,
+                                                           irets=irets,
                                                            d_before=d_before + 1,
                                                            d_after=d_after)
 
